@@ -1,5 +1,5 @@
 (define (domain domain-robots)
-    (:requirements :strips :typing :fluents)
+    (:requirements :strips :typing)
     (:types
         location pobject robot - object
         robot-brazo - robot
