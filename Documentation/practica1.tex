@@ -31,6 +31,11 @@ Posteriormente, emplearemos el planificador Metric-FF para resolver los problema
 Este informe detalla los cambios realizados en el dominio y los problemas, así como los resultados obtenidos mediante las ejecuciones 
 del planificador Metric-FF. En la última sección del documento, se analizarán los resultados obtenidos.
 
+\section{Nota importante}
+Al terminar de realizar la práctica y tras hablar con la profesora Eva Onaindia, me di cuenta de que no se podían utilizar PDDL2.1. 
+Por lo tanto, en la primera parte de la práctica se presenta una solución con PDDL2.1, pero al final de este documento se presenta 
+una solución con PDDL sin ":fluents". A nivel de conclusiones, no es muy distinto utilizar uno u otro. 
+
  \section{Cambios en el Dominio y Problema}
 
  \subsection{Cambios en el Dominio}
@@ -164,7 +169,7 @@ del planificador Metric-FF. En la última sección del documento, se analizarán
 
 
 \subsection{Cambios en el problema}
-Se modificó el dominio del problema de \textit{robots} a \textit{domain-robots2.1} y se añadieron un robot de tipo \textit{robot-brazo} 
+Se modificó el dominio del problema de \textit{robots} a \textit{domain-robots} y se añadieron un robot de tipo \textit{robot-brazo} 
 y otro de tipo \textit{robot-cesta}, eliminando el robot de tipo \textit{robot}. También se añadió un nuevo objeto. 
 
 Luego, en la inicialización, se estableció en dos el número de brazos disponibles del \textit{robot-brazo}. También se añadió la posición de los objetos 
@@ -175,7 +180,7 @@ En el siguiente código, se pueden ver los cambios realizados:
 
 \begin{Verbatim}[commandchars=\\\{\}]
 (define (problem robots)
-  (:domain (\textcolor{blue}{domain-robots2.1})
+  (:domain (\textcolor{blue}{domain-robots})
   (:objects l01 l02 l03 l04 l05 l06 l07 l08 l09 l10 - location
   (\textcolor{blue}{robotB0 - robot-brazo})
   (\textcolor{blue}{robotC0 - robot-cesta})
@@ -221,8 +226,8 @@ A continuación, se presenta una tabla comparativa que incluye:
     \begin{tabular}{|c|c|c|c|c|}
     \hline
     \textbf{Problema} & \textbf{Tiempo total (s)} & \textbf{Acciones} & \textbf{Nodos evaluados} & \textbf{Número de objetos} \\ \hline
-    p01               & 0                          & 5                  & 8                         & 1                           \\ \hline
-    p02               & 0                          & 10                 & 19                        & 2                           \\ \hline
+    p01               & 0.01                       & 5                  & 8                         & 1                           \\ \hline
+    p02               & 0.01                       & 10                 & 19                        & 2                           \\ \hline
     p03               & 0.01                       & 38                 & 276                       & 6                           \\ \hline
     p04               & 0.07                       & 37                 & 710                       & 6                           \\ \hline
     p05               & 0.01                       & 31                 & 64                        & 6                           \\ \hline
@@ -402,6 +407,419 @@ coordinates {
 \end{tikzpicture}
 \end{center}
 
+
+\section{Solución con PDDL}
+En este apartado se presentará la solución para resolver el problema sin utilizar PDDL2.1.
+
+\subsection{Definición del dominio}
+Para implementar el problema en PDDL se realizaron varias modificaciones respecto al dominio con PDDL2.1.
+ Este nuevo dominio se puede encontrar en el archivo "domain-robots-sin-fluents". 
+
+Los primeros cambios fueron eliminar de los requerimientos ":fluents" y eliminar el apartado de ":functions" del problema.
+
+Una vez eliminados, se definió un nuevo tipo de objeto denominado "capacidad". Este nos servirá para definir el distinto número de 
+brazos que puede tener un robot. En nuestro caso, puede tener 0 o 2, pero podría darse el caso de que se pudieran tener un mayor número 
+de brazos, por lo que la solución planteada sirve para cualquier número de brazos.
+
+En segundo lugar, se añadieron dos nuevos predicados:
+\begin{Verbatim}[commandchars=\\\{\}]
+    (:predicates
+        (at-robot ?r - robot ?l - location)
+        (at-pobject ?p - pobject ?l - location)
+        (holding ?r - robot ?p - pobject)
+        (connected ?l - location ?l1 - location)
+        (in-cesta ?r - robot ?p - pobject)
+        (has-brazo ?r - robot)
+        (\textcolor{blue}{(capacidad_robot ?r - robot ?c - capacidad)})
+        (\textcolor{blue}{(predecesor_capacidad ?c1 - capacidad ?c2 - capacidad)})
+    )
+\end{Verbatim}
+
+\textbf{capacidad\_robot}: asigna una cantidad de brazos a un robot concreto, lo que nos sirve para controlar el número de brazos que tiene disponible un robot.
+
+\textbf{predecesor\_capacidad}: indica cuál es la relación entre las capacidades. Ya que no podemos utilizar números, 
+creamos una relación de orden entre las distintas capacidades.
+
+\subsubsection{Modificaciones en las acciones}
+Los mayores cambios en el problema se encuentran en el apartado de acciones, ya que ahora tenemos que controlar el número de brazos disponibles con objetos de tipo capacidad.
+
+El funcionamiento es sencillo, por cada robot pasado por parámetro, se le añaden dos nuevas propiedades "capacidad\_actual" y "capacidad\_final". En el caso de pasar más de un robot por parámetro, se deberán añadir dos nuevos parámetros.
+
+\textbf{Capacidad actual}: debe coincidir con la capacidad actual del robot, por lo que la condición (capacidad\_robot ?r ?capacidad\_actual) debe ser siempre verdadera.
+
+\textbf{Capacidad final}: tiene dos casos:
+\begin{enumerate}
+    \item La acción va a implicar una liberación del brazo: esto implica que la capacidad actual tiene que ser el predecesor de la capacidad final, lo que se traduce en (predecesor\_capacidad ?capacidad\_actual ?capacidad\_final).
+    \item La acción va a implicar la ocupación de un brazo: en este caso, primero tenemos que comprobar que la capacidad del robot es mayor que cero (not((capacidad\_robot ?r capacidad0))). Una vez que hacemos esta comprobación, hay que verificar que la capacidad\_final sea el antecesor de la capacidad actual (predecesor\_capacidad ?capacidad\_final ?capacidad\_actual).
+\end{enumerate}
+
+Teniendo estas consideraciones en cuenta, ya tenemos todas las condiciones iniciales. En cuanto a los efectos, únicamente tendremos que eliminar la relación del robot con la capacidad inicial y crear una relación con la capacidad final.
+
+Todos estos cambios se aplicaron en las distintas acciones del dominio y el resultado fue el siguiente:
+
+\begin{Verbatim}[commandchars=\\\{\}]
+    (:predicates
+        (at-robot ?r - robot ?l - location)
+        (at-pobject ?p - pobject ?l - location)
+        (holding ?r - robot ?p - pobject)
+        (connected ?l - location ?l1 - location)
+        (in-cesta ?r - robot ?p - pobject)
+        (has-brazo ?r - robot)
+        (\textcolor{blue}{(capacidad_robot ?r - robot ?c - capacidad)})
+        (\textcolor{blue}{(predecesor_capacidad ?c1 - capacidad ?c2 - capacidad)})
+    )
+
+
+    (:action PICK-UP
+        :parameters (?rb - robot-brazo ?l - location ?p - pobject 
+        (\textcolor{blue}{?capacidad_actual ?final_capacidad - capacidad})
+        :precondition (and (at-robot ?rb ?l)
+            (not(capacidad_robot ?rb capacidad0))
+            \textcolor{blue}{((capacidad_robot ?rb ?capacidad_actual)}
+            \textcolor{blue}{((predecesor_capacidad ?final_capacidad ?capacidad_actual)}
+            (at-pobject ?p ?l))
+        :effect (and (not (at-pobject ?p ?l))
+            \textcolor{blue}{((not(capacidad_robot ?rb ?capacidad_actual))}
+            \textcolor{blue}{((capacidad_robot ?rb ?final_capacidad)}
+            (holding ?rb ?p))
+    )
+
+    (:action PUT-DOWN
+        :parameters (?rb - robot-brazo ?l - location ?p - pobject 
+        \textcolor{blue}{?capacidad_actual ?final_capacidad - capacidad})
+        :precondition (and (at-robot ?rb ?l)
+            \textcolor{blue}{(capacidad_robot ?rb ?capacidad_actual)}
+            \textcolor{blue}{(predecesor_capacidad ?capacidad_actual ?final_capacidad)}
+            (holding ?rb ?p))
+        :effect (and (not (holding ?rb ?p))
+            \textcolor{blue}{(not(capacidad_robot ?rb ?capacidad_actual))}
+            \textcolor{blue}{(capacidad_robot ?rb ?final_capacidad)}
+            (at-pobject ?p ?l))
+    )
+
+    (:action GIVE
+        :parameters (?rb - robot-brazo ?r - robot ?p - pobject ?l - location 
+        \textcolor{blue}{?capacidad_actual_rb ?capacidad_final_rb }
+        \textcolor{blue}{?capacidad_actual_r ?final_capacidad_r - capacidad})
+        :precondition (and (holding ?rb ?p)
+            (at-robot ?rb ?l)
+            (at-robot ?r ?l)
+            \textcolor{blue}{(capacidad_robot ?rb ?capacidad_actual_rb)}
+            \textcolor{blue}{(predecesor_capacidad ?capacidad_actual_rb ?capacidad_final_rb)}
+            (or (not (has-brazo ?r))
+                (and (not(capacidad_robot ?r capacidad0))
+                    \textcolor{blue}{(capacidad_robot ?r ?capacidad_actual_r)}
+                    \textcolor{blue}{(predecesor_capacidad ?final_capacidad_r ?capacidad_actual_r))))}
+        :effect (and
+            (not (holding ?rb ?p))
+            \textcolor{blue}{(not(capacidad_robot ?rb ?capacidad_actual_rb))}
+            \textcolor{blue}{(capacidad_robot ?rb ?capacidad_final_rb)}
+            (when
+                (has-brazo ?r)
+                (and \textcolor{blue}{(not(capacidad_robot ?r ?capacidad_actual_r))}
+                    \textcolor{blue}{capacidad_robot ?r ?final_capacidad_r)}
+                    (holding ?r ?p)))
+            (when
+                (not (has-brazo ?r))
+                (in-cesta ?r ?p))
+        )
+    )
+
+    (:action TAKE
+        :parameters (?rb - robot-brazo ?r - robot ?p - pobject ?l - location 
+        \textcolor{blue}{?capacidad_actual_rb ?capacidad_final_rb }
+        \textcolor{blue}{?capacidad_actual_r ?final_capacidad_r - capacidad)}
+        :precondition (and (at-robot ?rb ?l)
+            (at-robot ?r ?l)
+            \textcolor{blue}{(not(capacidad_robot ?rb capacidad0))}
+            \textcolor{blue}{(capacidad_robot ?rb ?capacidad_actual_rb)}
+            \textcolor{blue}{(predecesor_capacidad ?capacidad_final_rb ?capacidad_actual_rb)}
+            (or (and (has-brazo ?r)
+                    (holding ?r ?p)
+                    \textcolor{blue}{(capacidad_robot ?r ?capacidad_actual_r)}
+                    \textcolor{blue}{(predecesor_capacidad ?capacidad_actual_r ?final_capacidad_r))}
+                (and (not (has-brazo ?r)) (in-cesta ?r ?p))))
+        :effect (and
+            (holding ?rb ?p)
+            \textcolor{blue}{(not(capacidad_robot ?rb ?capacidad_actual_rb))}
+            \textcolor{blue}{(capacidad_robot ?rb ?capacidad_final_rb)}
+            (when
+                (has-brazo ?r)
+                (and
+                    \textcolor{blue}{(not(capacidad_robot ?r ?capacidad_actual_r))}
+                    \textcolor{blue}{(capacidad_robot ?r ?final_capacidad_r)}
+                    \textcolor{blue}{(not (holding ?r ?p))))}
+            (when
+                (not (has-brazo ?r))
+                (not (in-cesta ?r ?p)))
+        )
+    )
+\end{Verbatim}
+
+\subsection{Cambios en la definición del problema}
+Para adaptar los problemas a este nuevo dominio, se tuvieron que realizar algunos cambios:
+\begin{itemize}
+    \item Eliminación de las referencias a funciones.
+    \item Se definieron objetos de tipo capacidad: "capacidad0 capacidad1 capacidad2 - capacidad".
+    \item Se definió la capacidad de cada robot.
+    \item Se definieron los antecesores de cada capacidad.
+\end{itemize}
+
+Para el archivo \texttt{p02.pddl}, las modificaciones realizadas fueron las siguientes:
+
+
+\begin{Verbatim}[commandchars=\\\{\}]
+    (define (problem robots)
+      (:domain \textcolor{blue}{domain-robots-sin-fluents})
+      (:objects
+        l01 l02 l03 l04 l05 l06 l07 l08 l09 l10 - location
+        \textcolor{blue}{capacidad0 capacidad1 capacidad2 - capacidad}
+        robotB0 - robot-brazo
+        robotC0 - robot-cesta
+        pobject0 - pobject
+        pobject1 - pobject
+      )
+      (:init
+        ;FUNCTIONS
+        \textcolor{blue}{(capacidad_robot robotB0 capacidad2)}
+        \textcolor{blue}{(capacidad_robot robotC0 capacidad0)}
+    
+        \textcolor{blue}{(predecesor_capacidad capacidad0 capacidad1)}
+        \textcolor{blue}{(predecesor_capacidad capacidad1 capacidad2)}
+    
+        (at-robot robotB0 l01)
+        (at-robot robotC0 l10)
+        (has-brazo robotB0)
+        (at-pobject pobject0 l02)
+        (at-pobject pobject1 l03)
+        (connected l01 l02)
+        (connected l02 l01)
+        (connected l03 l02)
+        (connected l02 l03)
+        (connected l04 l02)
+        (connected l02 l04)
+        (connected l05 l02)
+        (connected l02 l05)
+        (connected l06 l05)
+        (connected l05 l06)
+        (connected l07 l05)
+        (connected l05 l07)
+        (connected l08 l05)
+        (connected l05 l08)
+        (connected l09 l08)
+        (connected l08 l09)
+        (connected l10 l08)
+        (connected l08 l10)
+      )
+      (:goal
+        (and
+          (at-pobject pobject0 l08)
+          (at-pobject pobject1 l04))
+      )
+    )
+\end{Verbatim}
+
+\subsection{Resultados}
+\begin{table}[h]
+    \centering
+    \begin{tabular}{|c|c|c|c|c|}
+    \hline
+    \textbf{Problema} & \textbf{Tiempo total (s)} & \textbf{Acciones} & \textbf{Nodos evaluados} & \textbf{Número de objetos} \\ \hline
+    p02\_sin\_fluents               & 0.02                       & 10                 & 19                        & 2                           \\ \hline
+    p03\_sin\_fluents               & 0.08                       & 26                 & 192                       & 6                           \\ \hline
+    p04\_sin\_fluents               & 0.88                       & 31                 & 1388                      & 6                           \\ \hline
+    p05\_sin\_fluents               & 0.06                       & 29                 & 78                        & 6                           \\ \hline
+    p06\_sin\_fluents               & 1.95                       & 51                 & 2261                      & 10                          \\ \hline
+    p07\_sin\_fluents               & 8.36                       & 79                 & 6713                      & 15                          \\ \hline
+    p08\_sin\_fluents               & 26.24                      & 101                & 14676                     & 20                          \\ \hline
+    p09\_sin\_fluents               & 68.69                      & 129                & 27608                     & 25                          \\ \hline
+    p10\_sin\_fluents               & 149.41                     & 152                & 46216                     & 30                          \\ \hline
+    \end{tabular}
+    \caption{Tabla del dominio de robots}
+    \label{tabla:dominio_robots}
+\end{table}
+
+\section{Comparación de resultados}
+Se ha realizado una comparativa de tiempo, número de acciones y nodos evaluados, como se puede ver en los gráficos debajo. 
+
+En cuanto al tiempo, la implementación realizada con PDDL2.1 ofrece mejores resultados en todos los escenarios. 
+Sin embargo, las soluciones aportadas por la implementación de PDDL son mejores, ya que conllevan un menor número de acciones. 
+Por último, a los nodos expandidos, aunque hay diferencias, prácticamente es irrelevantes.
+
+
+\begin{figure}
+    \centering
+    \begin{tikzpicture}
+        \begin{axis}[
+            width=12cm,
+            height=8cm,
+            xlabel={Problema},
+            ylabel={Tiempo total (s)},
+            xtick={2, 3, 4, 5, 6, 7, 8, 9, 10},
+            legend pos=north west,
+            grid=major,
+            ymode=log,
+            log ticks with fixed point,
+            %title={Comparación de Tiempos Totales entre PDDL y PDDL2.1}
+        ]
+
+        % Datos PDDL
+        \addplot[
+            color=blue,
+            mark=square*,
+            ]
+            coordinates {
+                (2, 0.02)
+                (3, 0.08)
+                (4, 0.88)
+                (5, 0.06)
+                (6, 1.95)
+                (7, 8.36)
+                (8, 26.24)
+                (9, 68.69)
+                (10, 149.41)
+            };
+        \addlegendentry{PDDL}
+
+        % Datos pddl2.1
+        \addplot[
+            color=red,
+            mark=*,
+            ]
+            coordinates {
+                (2, 0.01)
+                (3, 0.01)
+                (4, 0.07)
+                (5, 0.01)
+                (6, 0.29)
+                (7, 1.25)
+                (8, 3.89)
+                (9, 9.81)
+                (10, 21.97)
+            };
+        \addlegendentry{PDDL2.1}
+
+        \end{axis}
+    \end{tikzpicture}
+    \caption{Comparación de Tiempos Totales entre PDDL y PDDL2.1}
+    \label{fig:comparison}
+\end{figure}
+    
+\begin{figure}
+    \centering
+    \begin{tikzpicture}
+        \begin{axis}[
+            width=12cm,
+            height=8cm,
+            xlabel={Problema},
+            ylabel={Acciones},
+            xtick={2, 3, 4, 5, 6, 7, 8, 9, 10},
+            legend pos=north west,
+            grid=major,
+            %title={Comparación de Número de Acciones entre PDDL y PDDL2.1}
+        ]
+
+        % Datos PDDL
+        \addplot[
+            color=blue,
+            mark=square*,
+            ]
+            coordinates {
+                (2, 10)
+                (3, 26)
+                (4, 31)
+                (5, 29)
+                (6, 51)
+                (7, 79)
+                (8, 101)
+                (9, 129)
+                (10, 152)
+            };
+        \addlegendentry{PDDL}
+
+        % Datos pddl2.1
+        \addplot[
+            color=red,
+            mark=*,
+            ]
+            coordinates {
+                (2, 10)
+                (3, 38)
+                (4, 37)
+                (5, 31)
+                (6, 69)
+                (7, 109)
+                (8, 149)
+                (9, 189)
+                (10, 229)
+            };
+        \addlegendentry{PDDL2.1}
+
+        \end{axis}
+    \end{tikzpicture}
+    \caption{Comparación de Número de Acciones entre PDDL y PDDL2.1}
+    \label{fig:actions_comparison}
+\end{figure}
+
+\begin{figure}
+    \centering
+    \begin{tikzpicture}
+        \begin{axis}[
+            width=12cm,
+            height=8cm,
+            xlabel={Problema},
+            ylabel={Nodos Evaluados},
+            xtick={2, 3, 4, 5, 6, 7, 8, 9, 10},
+            legend pos=north west,
+            grid=major,
+            ymode=log,
+            log ticks with fixed point,
+            %title={Comparación de Nodos Evaluados entre PDDL y PDDL2.1}
+        ]
+
+        % Datos PDDL
+        \addplot[
+            color=blue,
+            mark=square*,
+            ]
+            coordinates {
+                (2, 19)
+                (3, 192)
+                (4, 1388)
+                (5, 78)
+                (6, 2261)
+                (7, 6713)
+                (8, 14676)
+                (9, 27608)
+                (10, 46216)
+            };
+        \addlegendentry{PDDL}
+
+        % Datos pddl2.1
+        \addplot[
+            color=red,
+            mark=*,
+            ]
+            coordinates {
+                (2, 19)
+                (3, 192)
+                (4, 1388)
+                (5, 78)
+                (6, 2261)
+                (7, 6713)
+                (8, 14676)
+                (9, 27608)
+                (10, 46216)
+            };
+        \addlegendentry{PDDL2.1}
+
+        \end{axis}
+    \end{tikzpicture}
+    \caption{Comparación de Nodos Evaluados entre PDDL y PDDL2.1}
+    \label{fig:nodes_comparison}
+\end{figure}
+
+\newpage
 \section{Conclusión}
 Este trabajo permitió adentrarse en la complejidad de la planificación automática mediante la manipulación de problemas PDDL y 
 el uso del planificador Metric-FF. Si bien se logró resolver la mayoría de los problemas, se evidenció una brecha entre las

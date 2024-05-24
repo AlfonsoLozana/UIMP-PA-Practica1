@@ -1,14 +1,19 @@
 (define (problem robots)
-  (:domain domain-robots)
+  (:domain domain-robots-sin-fluents)
   (:objects
     l01 l02 l03 l04 l05 l06 l07 l08 l09 l10 - location
+    capacidad0 capacidad1 capacidad2 - capacidad
     robotB0 - robot-brazo
     robotC0 - robot-cesta
     pobject0 pobject1 pobject2 pobject3 pobject4 pobject5 - pobject
   )
   (:init
     ;FUNCTIONS
-    (= (brazos-libres robotB0) 2)
+    (capacidad_robot robotB0 capacidad2)
+    (capacidad_robot robotC0 capacidad0)
+
+    (predecesor_capacidad capacidad0 capacidad1)
+    (predecesor_capacidad capacidad1 capacidad2)
 
     (at-robot robotB0 l01)
     (at-robot robotC0 l01)
@@ -47,4 +52,4 @@
       (at-pobject pobject4 l08)
       (at-pobject pobject5 l08))
   )
-)
+) 
